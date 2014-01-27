@@ -1,0 +1,5 @@
+name = DS contrib
+description = Display Suite contrib integrations
+dependencies[] = ds
+package = custom
+core = 7.x

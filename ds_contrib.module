@@ -1,0 +1,335 @@
+<?php
+
+/**
+ * @file ds_contrib.module
+ * TODO: Enter file description here.
+ */
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function ds_contrib_field_extra_fields_alter(&$info) {
+  // Remove the default Bean field from the display UI.
+  if (module_exists('bean')) {
+    foreach (bean_get_types() as $type) {
+      unset($info['bean'][$type->type]['display']['title']);
+    }
+  }
+  // Remove the default Webform field from the display UI.
+  if (module_exists('webform')) {
+    foreach (webform_node_types() as $type) {
+      unset($info['node'][$type]['display']['webform']);
+    }
+  }
+}
+
+/**
+ * Implements hook_ds_fields_info().
+ */
+function ds_contrib_ds_fields_info($entity_type) {
+  // Prefixed title field for taxonomy terms, users and nodes
+  if (in_array($entity_type, array('node', 'taxonomy_term', 'user'))) {
+    switch ($entity_type) {
+      case 'taxonomy_term':
+      case 'user':
+        $key = 'name';
+        break;
+      case 'node':
+      default:
+        $key = 'title';
+    }
+    $fields[$entity_type]['title_prefix'] = array(
+      'title' => t('Prefixed title'),
+      'field_type' => DS_FIELD_TYPE_FUNCTION,
+      'function' => 'ds_contrib_render_title_prefix',
+      'properties' => array(
+        'entity_render_key' => $key,
+        'settings' => array(
+          'link' => array('type' => 'select', 'options' => array('no', 'yes')),
+          'wrapper' => array('type' => 'textfield', 'description' => t('Eg: h1, h2, p')),
+          'class' => array('type' => 'textfield', 'description' => t('Put a class on the wrapper. Eg: block-title')),
+          'lowercase' => array('type' => 'select', 'options' => array('no', 'yes')),
+          'prefix' => array('type' => 'textfield', 'description' => t('Prefix the title. Eg. All')),
+          'postfix' => array('type' => 'textfield', 'description' => t('Postfix the title')),
+        ),
+        'default' => array('wrapper' => 'h2', 'link' => 0, 'class' => '', 'prefix' => '', 'postfix' => '', 'lowercase' => 0),
+      ),
+    );
+  }
+
+  // Allow bean titles to be formatted like fields.
+  if (module_exists('bean')) {
+    $fields['bean']['title'] = array(
+      'title' => t('Title'),
+      'field_type' => DS_FIELD_TYPE_FUNCTION,
+      'function' => 'ds_render_field',
+      'properties' => array(
+        'entity_render_key' => 'title',
+        'settings' => array(
+          'link' => array('type' => 'select', 'options' => array('no', 'yes')),
+          'wrapper' => array('type' => 'textfield', 'description' => t('Eg: h1, h2, p')),
+          'class' => array('type' => 'textfield', 'description' => t('Put a class on the wrapper. Eg: block-title')),
+        ),
+        'default' => array('wrapper' => 'h2', 'link' => 0, 'class' => ''),
+      ),
+    );
+  }
+
+  // Allow webforms to be wrapped
+  if (module_exists('webform')) {
+    $types = array();
+    foreach (webform_node_types() as $type) {
+      $types[] = $type . '|*';
+    }
+    $fields['node']['webform_ds'] = array(
+      'title' => t('Webform'),
+      'field_type' => DS_FIELD_TYPE_FUNCTION,
+      'function' => 'ds_contrib_render_webform',
+      'ui_limit' => $types,
+      'properties' => array(
+        'settings' => array(
+          'wrapper' => array('type' => 'textfield', 'description' => t('Eg: h1, h2, p')),
+          'class' => array('type' => 'textfield', 'description' => t('Put a class on the wrapper. Eg: block-title')),
+        ),
+        'default' => array('wrapper' => 'div', 'class' => ''),
+      ),
+    );
+  }
+
+  if (module_exists('recipe')) {
+    // Add the recipe_yield as a configurable ds field.
+    $fields['node']['recipe_yield'] = array(
+      'title' => t('Yield'),
+      'field_type' => DS_FIELD_TYPE_FUNCTION,
+      'function' => 'ds_render_field',
+      'ui_limit' => array('recipe|*'),
+      'properties' => array(
+        'entity_render_key' => 'recipe_yield',
+        'settings' => array(),
+        'default' => array(),
+      ),
+    );
+    // Add a combined total time field (prep time + cook time)
+    $fields['node']['total_time'] = array(
+      'title' => t('Total cooking time'),
+      'field_type' => DS_FIELD_TYPE_FUNCTION,
+      'function' => 'ds_contrib_render_total_time',
+      'ui_limit' => array('recipe|*'),
+      'properties' => array(
+        'settings' => array(),
+        'default' => array(),
+      ),
+    );
+  }
+  // Add a FB comment count field to all entities.
+  // @see ds_contrib_node_view().
+  if (module_exists('facebook_comments') && $entity_type == 'node') {
+    $types = array();
+    foreach (node_type_get_types() as $type) {
+      if (facebook_comments_is_enabled($type->type)) {
+        $types[] = $type->type . '|*';
+      }
+    }
+    $fields['node']['fb_comment_count'] = array(
+      'title' => t('Comment count'),
+      'field_type' => DS_FIELD_TYPE_FUNCTION,
+      'function' => 'ds_contrib_render_fb_comment_count',
+      'ui_limit' => $types,
+      'properties' => array(
+        'settings' => array(),
+        'default' => array(),
+      ),
+    );
+  }
+  // Render the rate widget through DS.
+  // @see ds_contrib_ds_render_fb_comment_count().
+  // @see ds_contrib_ds_field_settings_form().
+  // @see ds_contrib_ds_field_format_summary().
+  if (module_exists('rate') && $entity_type == 'node') {
+    // Sort of a hack, widgets should be the same for all view modes.
+    $widgets = variable_get(RATE_VAR_WIDGETS, array());
+    $types = array();
+    $rate_widgets = array();
+    foreach ($widgets as $widget_id => $widget) {
+      $content_types = array_merge($content_types, $widget->node_types);
+      foreach ($widget->node_types as $content_type) {
+        $types[] = $content_type . '|*';
+      }
+      $rate_widgets[$widget_id] = 'rate_' . $widget->name;
+    }
+    $types = array_unique($types);
+    if (!empty($widgets)) {
+      $fields['node']['rate_widget'] = array(
+        'title' => t('Rate widget'),
+        'field_type' => DS_FIELD_TYPE_FUNCTION,
+        'function' => 'ds_contrib_render_rate_widget',
+        'ui_limit' => $types,
+        'properties' => array(
+          'settings' => array(
+            'widget' => array(
+              'type' => 'select',
+              'options' => $rate_widgets,
+            ),
+          ),
+          'default' => array(
+            'widget' => 1,
+          ),
+        ),
+      );
+    }
+  }
+  if (isset($fields[$entity_type])) {
+    return array($entity_type => $fields[$entity_type]);
+  }
+}
+
+/**
+ * Implements hook_ds_field_settings_form().
+ * @see ds_contrib_ds_fields_info().
+ */
+function ds_contrib_ds_field_settings_form($field) {
+  // Use the same settings structure so we can leverage ds own settings form.
+  return ds_ds_field_settings_form($field);
+}
+
+/**
+ * Implements hook_hooks_ds_field_format_summary().
+ * @see ds_contrib_ds_fields_info().
+ */
+function ds_contrib_ds_field_format_summary($field) {
+  $summary = '';
+  $settings = isset($field['formatter_settings']) ? $field['formatter_settings'] : $field['properties']['default'];
+  switch ($field['field_name']) {
+    case 'rate_widget':
+      $widgets = variable_get(RATE_VAR_WIDGETS, array());
+      $widget = !empty($widgets[$settings['widget']]) ? $widgets[$settings['widget']]->name : t('none');
+      $summary = t('Widget: !widget', array('!widget' => $widget)) . '<br>';
+      break;
+    default:
+      $summary = ds_ds_field_format_summary($field);
+  }
+  return $summary;
+}
+
+
+/**
+ * Render a title prefixed/suffixed and optionally lowercased.
+ * @see ds_contrib_ds_fields_info().
+ */
+function ds_contrib_render_title_prefix($field) {
+  $settings = isset($field['formatter_settings']) ? $field['formatter_settings'] : $field['properties']['default'];
+  $title = $field['entity']->{$field['properties']['entity_render_key']};
+  if ($settings['lowercase']) {
+    $title = drupal_strtolower($title);
+  }
+  $title = t($settings['prefix']) . $title . t($settings['postfix']);
+  return _ds_contrib_render_html($field, $title);
+}
+
+/**
+ * Render the combined cooking and preparation time of recipes.
+ * @see ds_contrib_ds_fields_info().
+ */
+function ds_contrib_render_total_time($field) {
+  $vars = array('duration' => 0);
+  // Iterate over the fields and calculate the total duration
+  foreach (array('recipe_prep_time', 'recipe_cook_time') as $field_name) {
+    if ($field_time = field_get_items($field['entity_type'], $field['entity'], $field_name)) {
+      $vars['duration'] += $field_time[0]['value'];
+    }
+  }
+  $duration = theme('recipe_duration', $vars);
+  return _ds_contrib_render_html($field, $duration);
+}
+
+/**
+ * Render a rate widget.
+ * @see ds_contrib_ds_fields_info().
+ */
+function ds_contrib_render_rate_widget($field) {
+  $settings = isset($field['formatter_settings']) ? $field['formatter_settings'] : $field['properties']['default'];
+  $widget = rate_generate_widget($settings['widget'], $field['entity_type'], entity_id($field['entity_type'], $field['entity']));
+
+  return _ds_contrib_render_html($field, $widget);
+}
+
+/**
+ * Render facebook comment count tag.
+ * Wrap around ds_render_field to allow HTML to be inserted.
+ */
+function ds_contrib_render_fb_comment_count($field) {
+  $uri_info = entity_uri($field['entity_type'], $field['entity']);
+  $tag = '<fb:comments-count href="' . url($uri_info['path'], array('absolute' => TRUE)) . '"></fb:comments-count>';
+
+  return _ds_contrib_render_html($field, $tag);
+}
+
+/**
+ * Implements hook_ds_fields_info_alter().
+ */
+function ds_contrib_ds_fields_info_alter(&$fields, $entity_type) {
+  if ($entity_type == 'ds_views') {
+    // Override ds_vd_render_title_field so we can output the field formatter
+    // settings.
+    $fields['title']['function'] = 'ds_contrib_vd_render_title_field';
+  }
+}
+
+/**
+ * Function overriding ds_vd_render_title_field() so that it
+ * rendereds the field using custom formatters.
+ * @see ds_vd_render_title_field().
+ */
+function ds_contrib_vd_render_title_field($field) {
+  ds_vd_render_title_field($field);
+  if (isset($field['formatter_settings']['ft']['func'])) {
+    // Construct a custom render array acceptable by the ds theme functions,
+    // eg. theme_ds_field_export().
+    $vars = array(
+      'label_hidden' => TRUE,
+      'ds-config' => $field['formatter_settings']['ft'],
+      'items' => array(
+        array('#markup' => $field['entity']->get_title()),
+      ),
+      'item_attributes' => array(),
+      'classes' => '',
+      'attributes' => '',
+    );
+    $output = $field['formatter_settings']['ft']['func']($vars);
+    $field['entity']->ds_vd['title'] = $output;
+  }
+}
+
+/**
+ * Render webform content inside the formatter field structure.
+ */
+function ds_contrib_render_webform($field) {
+  // Clone the entity not to modify content while rendering.
+  $node = clone $field['entity'];
+  // Let webform take care of the variable processing.
+  webform_node_view($node, $field['view_mode']);
+  // Only webforms hook_node_view has been invoked so no other content exist.
+  $webform = drupal_render($node->content);
+  return _ds_contrib_render_html($field, $webform);
+}
+
+/**
+ * Render cusom HTML inside the formatted field structure.
+ */
+function _ds_contrib_render_html($field, $html) {
+  $field['properties']['entity_render_key'] = 'ds_contrib_key';
+  $field['entity']->ds_contrib_key = 'DS_CONTRIB_PLACEHOLDER';
+  $output = ds_render_field($field);
+  return str_replace('DS_CONTRIB_PLACEHOLDER', $html, $output);
+}
+
+/**
+ * Implements hook_block_view_alter().
+ */
+function ds_contrib_block_view_alter(&$data, $block) {
+  // Hide the block title if it's a bean. The bean renders it itself when DS is
+  // used.
+  if ($block->module == 'bean') {
+    $data['subject'] = NULL;
+  }
+}
