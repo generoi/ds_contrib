@@ -322,14 +322,3 @@ function _ds_contrib_render_html($field, $html) {
   $output = ds_render_field($field);
   return str_replace('DS_CONTRIB_PLACEHOLDER', $html, $output);
 }
-
-/**
- * Implements hook_block_view_alter().
- */
-function ds_contrib_block_view_alter(&$data, $block) {
-  // Hide the block title if it's a bean. The bean renders it itself when DS is
-  // used.
-  if ($block->module == 'bean') {
-    $data['subject'] = NULL;
-  }
-}
