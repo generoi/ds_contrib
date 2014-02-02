@@ -5,6 +5,10 @@
  * TODO: Enter file description here.
  */
 
+if (module_exists('facebook_comments')) {
+  module_load_include('inc', 'ds_contrib', 'ds_contrib.facebook_comments');
+}
+
 /**
  * Implements hook_field_extra_fields().
  */
@@ -142,9 +146,6 @@ function ds_contrib_ds_fields_info($entity_type) {
     );
   }
   // Render the rate widget through DS.
-  // @see ds_contrib_ds_render_fb_comment_count().
-  // @see ds_contrib_ds_field_settings_form().
-  // @see ds_contrib_ds_field_format_summary().
   if (module_exists('rate') && $entity_type == 'node') {
     // Sort of a hack, widgets should be the same for all view modes.
     $widgets = variable_get(RATE_VAR_WIDGETS, array());
@@ -258,8 +259,12 @@ function ds_contrib_render_rate_widget($field) {
  * Wrap around ds_render_field to allow HTML to be inserted.
  */
 function ds_contrib_render_fb_comment_count($field) {
+  if (!ds_contrib_facebook_comments_enabled($field['entity'])) {
+    return '';
+  }
   $uri_info = entity_uri($field['entity_type'], $field['entity']);
-  $tag = '<fb:comments-count href="' . url($uri_info['path'], array('absolute' => TRUE)) . '"></fb:comments-count>';
+  $url = url($uri_info, array('absolute' => TRUE));
+  $tag = '<fb:comments-count href="' . $url . '"></fb:comments-count>';
 
   return _ds_contrib_render_html($field, $tag);
 }
