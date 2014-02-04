@@ -31,7 +31,7 @@ function ds_contrib_field_extra_fields_alter(&$info) {
  * Implements hook_ds_fields_info().
  */
 function ds_contrib_ds_fields_info($entity_type) {
-  // Prefixed title field for taxonomy terms, users and nodes
+  // Advanced title field for taxonomy terms, users and nodes
   if (in_array($entity_type, array('node', 'taxonomy_term', 'user'))) {
     switch ($entity_type) {
       case 'taxonomy_term':
@@ -43,7 +43,7 @@ function ds_contrib_ds_fields_info($entity_type) {
         $key = 'title';
     }
     $fields[$entity_type]['title_prefix'] = array(
-      'title' => t('Prefixed title'),
+      'title' => t('Advanced title'),
       'field_type' => DS_FIELD_TYPE_FUNCTION,
       'function' => 'ds_contrib_render_title_prefix',
       'properties' => array(
@@ -52,9 +52,10 @@ function ds_contrib_ds_fields_info($entity_type) {
           'link' => array('type' => 'select', 'options' => array('no', 'yes')),
           'wrapper' => array('type' => 'textfield', 'description' => t('Eg: h1, h2, p')),
           'class' => array('type' => 'textfield', 'description' => t('Put a class on the wrapper. Eg: block-title')),
+          'hyphenate' => array('type' => 'select', 'options' => array('no', 'yes')),
           'lowercase' => array('type' => 'select', 'options' => array('no', 'yes')),
           'prefix' => array('type' => 'textfield', 'description' => t('Prefix the title. Eg. All')),
-          'postfix' => array('type' => 'textfield', 'description' => t('Postfix the title')),
+          'postfix' => array('type' => 'textfield', 'description' => t('Suffix the title')),
         ),
         'default' => array('wrapper' => 'h2', 'link' => 0, 'class' => '', 'prefix' => '', 'postfix' => '', 'lowercase' => 0),
       ),
@@ -224,6 +225,9 @@ function ds_contrib_render_title_prefix($field) {
     $title = drupal_strtolower($title);
   }
   $title = t($settings['prefix']) . $title . t($settings['postfix']);
+  if ($settings['hyphenate']) {
+    $title = ds_contrib_hyphenate($title, $field['entity']->language);
+  }
   return _ds_contrib_render_html($field, $title);
 }
 
@@ -326,4 +330,46 @@ function _ds_contrib_render_html($field, $html) {
   $field['entity']->ds_contrib_key = 'DS_CONTRIB_PLACEHOLDER';
   $output = ds_render_field($field);
   return str_replace('DS_CONTRIB_PLACEHOLDER', $html, $output);
+}
+
+/**
+ * Hyphenate a text string.
+ */
+function ds_contrib_hyphenate($text, $langcode = NULL) {
+  $pattern = &drupal_static(__FUNCTION__);
+  if (!isset($langcode)) {
+    $langcode = i18n_langcode();
+  }
+  // Return early if there is not title
+  if ($text == '<none>' || empty($text)) {
+    return $text;
+  }
+
+  if (!isset($pattern[$langcode])) {
+    $pattern = array();
+    $path = libraries_get_path('phpHyphenator');
+    $pattern_path = $path . '/patterns/' . $langcode . '.php';
+    $lib_path = $path . '/hyphenation.php';
+
+    // There's no translation available.
+    if (file_exists($lib_path) === FALSE || file_exists($pattern_path) === FALSE) {
+      return $text;
+    }
+    else {
+      require_once $lib_path;
+    }
+
+    // Cache the patttern conversion as it's quite expensive to calculate
+    if ($cached = cache_get('phphyphenator_' . $langcode, 'cache')) {
+      $pattern[$langcode] = $cached->data;
+    }
+    // Not cached, get it
+    else {
+      require_once $pattern_path;
+      $pattern[$langcode] = phphyphenator_convert_patterns($patterns);
+      cache_set('phphyphenator_' . $langcode, $pattern[$langcode], 'cache');
+    }
+  }
+
+  return phphyphenator_hyphenation($text, $pattern[$langcode]);
 }
