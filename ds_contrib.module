@@ -31,6 +31,11 @@ function ds_contrib_field_extra_fields_alter(&$info) {
  * Implements hook_ds_fields_info().
  */
 function ds_contrib_ds_fields_info($entity_type) {
+  // Node types are used in several defitions, run it once.
+  $node_types = array();
+  foreach (node_type_get_types() as $type) {
+    $node_types[] = $type->type;
+  }
   // Advanced title field for taxonomy terms, users and nodes
   if (in_array($entity_type, array('node', 'taxonomy_term', 'user'))) {
     switch ($entity_type) {
@@ -57,7 +62,7 @@ function ds_contrib_ds_fields_info($entity_type) {
           'prefix' => array('type' => 'textfield', 'description' => t('Prefix the title. Eg. All')),
           'postfix' => array('type' => 'textfield', 'description' => t('Suffix the title')),
         ),
-        'default' => array('wrapper' => 'h2', 'link' => 0, 'class' => '', 'prefix' => '', 'postfix' => '', 'lowercase' => 0),
+        'default' => array('wrapper' => 'h2', 'link' => 0, 'hyphenate' => 'no', 'class' => '', 'prefix' => '', 'postfix' => '', 'lowercase' => 0),
       ),
     );
   }
@@ -96,7 +101,7 @@ function ds_contrib_ds_fields_info($entity_type) {
           'wrapper' => array('type' => 'textfield', 'description' => t('Eg: h1, h2, p')),
           'class' => array('type' => 'textfield', 'description' => t('Put a class on the wrapper. Eg: block-title')),
         ),
-        'default' => array('wrapper' => 'div', 'class' => ''),
+        'default' => array('wrapper' => 'div', 'class' => '', 'link' => 0),
       ),
     );
   }
@@ -111,7 +116,7 @@ function ds_contrib_ds_fields_info($entity_type) {
       'properties' => array(
         'entity_render_key' => 'recipe_yield',
         'settings' => array(),
-        'default' => array(),
+        'default' => array('link' => 0),
       ),
     );
     // Add a combined total time field (prep time + cook time)
@@ -122,7 +127,7 @@ function ds_contrib_ds_fields_info($entity_type) {
       'ui_limit' => array('recipe|*'),
       'properties' => array(
         'settings' => array(),
-        'default' => array(),
+        'default' => array('link' => 0),
       ),
     );
   }
@@ -130,9 +135,9 @@ function ds_contrib_ds_fields_info($entity_type) {
   // @see ds_contrib_node_view().
   if (module_exists('facebook_comments') && $entity_type == 'node') {
     $types = array();
-    foreach (node_type_get_types() as $type) {
-      if (facebook_comments_is_enabled($type->type)) {
-        $types[] = $type->type . '|*';
+    foreach ($node_types as $type) {
+      if (facebook_comments_is_enabled($type)) {
+        $types[] = $type . '|*';
       }
     }
     $fields['node']['fb_comment_count'] = array(
@@ -142,7 +147,7 @@ function ds_contrib_ds_fields_info($entity_type) {
       'ui_limit' => $types,
       'properties' => array(
         'settings' => array(),
-        'default' => array(),
+        'default' => array('link' => 0),
       ),
     );
   }
@@ -153,7 +158,6 @@ function ds_contrib_ds_fields_info($entity_type) {
     $types = array();
     $rate_widgets = array();
     foreach ($widgets as $widget_id => $widget) {
-      $content_types = array_merge($content_types, $widget->node_types);
       foreach ($widget->node_types as $content_type) {
         $types[] = $content_type . '|*';
       }
@@ -173,9 +177,7 @@ function ds_contrib_ds_fields_info($entity_type) {
               'options' => $rate_widgets,
             ),
           ),
-          'default' => array(
-            'widget' => 1,
-          ),
+          'default' => array('widget' => 1, 'link' => 0),
         ),
       );
     }
@@ -201,7 +203,7 @@ function ds_contrib_ds_field_settings_form($field) {
 function ds_contrib_ds_field_format_summary($field) {
   $summary = '';
   $settings = isset($field['formatter_settings']) ? $field['formatter_settings'] : $field['properties']['default'];
-  switch ($field['field_name']) {
+  switch ($field['name']) {
     case 'rate_widget':
       $widgets = variable_get(RATE_VAR_WIDGETS, array());
       $widget = !empty($widgets[$settings['widget']]) ? $widgets[$settings['widget']]->name : t('none');
@@ -225,7 +227,7 @@ function ds_contrib_render_title_prefix($field) {
     $title = drupal_strtolower($title);
   }
   $title = t($settings['prefix']) . $title . t($settings['postfix']);
-  if ($settings['hyphenate']) {
+  if (!empty($settings['hyphenate'])) {
     $title = ds_contrib_hyphenate($title, $field['entity']->language);
   }
   return _ds_contrib_render_html($field, $title);
@@ -267,7 +269,7 @@ function ds_contrib_render_fb_comment_count($field) {
     return '';
   }
   $uri_info = entity_uri($field['entity_type'], $field['entity']);
-  $url = url($uri_info, array('absolute' => TRUE));
+  $url = url($uri_info['path'], array('absolute' => TRUE));
   $tag = '<fb:comments-count href="' . $url . '"></fb:comments-count>';
 
   return _ds_contrib_render_html($field, $tag);
@@ -300,7 +302,9 @@ function ds_contrib_vd_render_title_field($field) {
       'items' => array(
         array('#markup' => $field['entity']->get_title()),
       ),
-      'item_attributes' => array(),
+      'item_attributes' => array(''),
+      'content_attributes' => '',
+      'title_attributes' => '',
       'classes' => '',
       'attributes' => '',
     );
@@ -328,6 +332,9 @@ function ds_contrib_render_webform($field) {
 function _ds_contrib_render_html($field, $html) {
   $field['properties']['entity_render_key'] = 'ds_contrib_key';
   $field['entity']->ds_contrib_key = 'DS_CONTRIB_PLACEHOLDER';
+  if (!isset($field['properties']['default']['link'])) {
+    $field['properties']['default']['link'] = 0;
+  }
   $output = ds_render_field($field);
   return str_replace('DS_CONTRIB_PLACEHOLDER', $html, $output);
 }
