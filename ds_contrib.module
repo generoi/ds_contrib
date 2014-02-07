@@ -59,10 +59,13 @@ function ds_contrib_ds_fields_info($entity_type) {
           'class' => array('type' => 'textfield', 'description' => t('Put a class on the wrapper. Eg: block-title')),
           'hyphenate' => array('type' => 'select', 'options' => array('no', 'yes')),
           'lowercase' => array('type' => 'select', 'options' => array('no', 'yes')),
+          'trim' => array('type' => 'select', 'options' => array('no', 'yes')),
+          'trim_length' => array('type' => 'textfield'),
+          'trim_suffix' => array('type' => 'textfield'),
           'prefix' => array('type' => 'textfield', 'description' => t('Prefix the title. Eg. All')),
           'postfix' => array('type' => 'textfield', 'description' => t('Suffix the title')),
         ),
-        'default' => array('wrapper' => 'h2', 'link' => 0, 'hyphenate' => 'no', 'class' => '', 'prefix' => '', 'postfix' => '', 'lowercase' => 0),
+        'default' => array('wrapper' => 'h2', 'link' => 0, 'hyphenate' => 0, 'class' => '', 'prefix' => '', 'postfix' => '', 'lowercase' => 0, 'trim' => 0, 'trim_length' => '', 'trim_suffix' => '…'),
       ),
     );
   }
@@ -182,6 +185,7 @@ function ds_contrib_ds_fields_info($entity_type) {
       );
     }
   }
+
   if (isset($fields[$entity_type])) {
     return array($entity_type => $fields[$entity_type]);
   }
@@ -225,6 +229,11 @@ function ds_contrib_render_title_prefix($field) {
   $title = $field['entity']->{$field['properties']['entity_render_key']};
   if ($settings['lowercase']) {
     $title = drupal_strtolower($title);
+  }
+  if ($settings['trim'] && is_numeric($settings['trim_length'])) {
+    if (drupal_strlen($title) > $settings['trim_length']) {
+      $title = drupal_substr($title, 0, $settings['trim_length']) . $settings['trim_suffix'];
+    }
   }
   $title = t($settings['prefix']) . $title . t($settings['postfix']);
   if (!empty($settings['hyphenate'])) {
