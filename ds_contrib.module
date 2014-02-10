@@ -230,7 +230,7 @@ function ds_contrib_render_title_prefix($field) {
   if ($settings['lowercase']) {
     $title = drupal_strtolower($title);
   }
-  if ($settings['trim'] && is_numeric($settings['trim_length'])) {
+  if (!empty($settings['trim']) && is_numeric($settings['trim_length'])) {
     if (drupal_strlen($title) > $settings['trim_length']) {
       $title = drupal_substr($title, 0, $settings['trim_length']) . $settings['trim_suffix'];
     }
