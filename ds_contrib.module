@@ -254,6 +254,10 @@ function ds_contrib_render_total_time($field) {
       $vars['duration'] += $field_time[0]['value'];
     }
   }
+  // Hide the field if no duration, as per field defaults.
+  if ($vars['duration'] == 0) {
+    return '';
+  }
   $duration = theme('recipe_duration', $vars);
   return _ds_contrib_render_html($field, $duration);
 }
