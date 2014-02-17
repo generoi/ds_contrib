@@ -1,5 +1,6 @@
 name = DS contrib
 description = Display Suite contrib integrations
 dependencies[] = ds
+dependencies[] = ds_extras
 package = custom
 core = 7.x
