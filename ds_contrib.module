@@ -336,6 +336,9 @@ function ds_contrib_render_webform($field) {
   webform_node_view($node, $field['view_mode']);
   // Only webforms hook_node_view has been invoked so no other content exist.
   $webform = drupal_render($node->content);
+  if (empty($webform)) {
+    return '';
+  }
   return _ds_contrib_render_html($field, $webform);
 }
 
