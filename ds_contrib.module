@@ -315,6 +315,11 @@ function ds_contrib_vd_render_title_field($field) {
       'items' => array(
         array('#markup' => $field['entity']->get_title()),
       ),
+      'element' => array(
+        '#entity_type' => 'ds_views',
+        '#object' => $field['entity'],
+        '#label_display' => '',
+      ),
       'item_attributes' => array(''),
       'content_attributes' => '',
       'title_attributes' => '',
