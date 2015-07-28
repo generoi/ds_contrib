@@ -28,6 +28,16 @@ function ds_contrib_field_extra_fields_alter(&$info) {
 }
 
 /**
+ * Implements hook_field_extra_fields_display_alter().
+ */
+function ds_contrib_field_extra_fields_display_alter(&$display, $context) {
+  if ($context['bundle'] == 'webform') {
+    $display['webform']['visible'] = TRUE;
+    $display['webform']['weight'] = 99;
+  }
+}
+
+/**
  * Implements hook_ds_fields_info().
  */
 function ds_contrib_ds_fields_info($entity_type) {
