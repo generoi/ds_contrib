@@ -31,6 +31,7 @@ function ds_contrib_field_extra_fields_alter(&$info) {
  * Implements hook_field_extra_fields_display_alter().
  */
 function ds_contrib_field_extra_fields_display_alter(&$display, $context) {
+  // @todo custom node types should be added.
   if ($context['bundle'] == 'webform') {
     $display['webform']['visible'] = TRUE;
     $display['webform']['weight'] = 99;
